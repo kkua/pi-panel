@@ -4,7 +4,7 @@ extern crate serde_json;
 extern crate lazy_static;
 
 use actix_files::NamedFile;
-use actix_web::{web, web::Json, App, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::{web, web::Json, App, HttpRequest, HttpServer, Result};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::sync::RwLock;
@@ -26,26 +26,29 @@ struct CommandArgs {
     #[structopt(
         short = "-m",
         long = "--mountBase",
-        help = "parent directory of mount point when using relative path, default value: /mnt/"
+        default_value = "/mnt/",
+        help = "parent directory of mount point when using relative path"
     )]
-    mount_base: Option<String>,
+    mount_base: String,
 }
 
 lazy_static! {
-    static ref MOUNT_BASE_PATH: RwLock<String> = RwLock::new(String::from("/mnt"));
+    static ref MOUNT_BASE_PATH: RwLock<String> = RwLock::new(String::new());
+}
+
+fn init_mount_base_path(mut mount_base_path: String) {
+    if !mount_base_path.ends_with("/") {
+        mount_base_path.push('/');
+    }
+    (*MOUNT_BASE_PATH)
+        .write()
+        .expect("Failed to initialize MOUNT_BASE_PATH")
+        .push_str(&mount_base_path);
 }
 
 fn main() {
     let args = CommandArgs::from_args();
-    if let Some(mut mount_base_path) = args.mount_base {
-        if !mount_base_path.ends_with("/") {
-            mount_base_path.push('/');
-        }
-        (*MOUNT_BASE_PATH)
-            .write()
-            .expect("Failed to initialize ")
-            .push_str(&mount_base_path);
-    }
+    init_mount_base_path(args.mount_base.to_owned());
 
     HttpServer::new(|| {
         App::new()
@@ -214,7 +217,7 @@ fn mount_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
                 return Ok(Json(json!({"code": -1, "msg": "错误的挂载点"})));
             }
         } else {
-            mount_point.push_str(&base_path);
+            mount_point.insert_str(0, &base_path);
         }
         let dest_path = std::path::Path::new(&mount_point);
         if !dest_path.exists() {
