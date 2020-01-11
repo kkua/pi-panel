@@ -46,7 +46,8 @@ fn init_mount_base_path(mut mount_base_path: String) {
         .push_str(&mount_base_path);
 }
 
-fn main() {
+#[actix_rt::main]
+async fn main() -> std::io::Result<()>  {
     let args = CommandArgs::from_args();
     init_mount_base_path(args.mount_base.to_owned());
 
@@ -63,11 +64,10 @@ fn main() {
     })
     .bind(&args.interface)
     .expect(&format!("Can not bind to interface[{}]", args.interface))
-    .run()
-    .expect("Failed to boot server");
+    .run().await
 }
 
-fn ui(req: HttpRequest) -> actix_web::Result<NamedFile> {
+async fn ui(req: HttpRequest) -> actix_web::Result<NamedFile> {
     let mut file_name = req.match_info().get("tail").unwrap_or("index.html");
     if file_name.is_empty() {
         file_name = "index.html";
@@ -75,7 +75,7 @@ fn ui(req: HttpRequest) -> actix_web::Result<NamedFile> {
     Ok(NamedFile::open("ui/".to_owned() + file_name)?)
 }
 
-fn status_data() -> Result<Json<serde_json::map::Map<String, serde_json::Value>>> {
+async fn status_data() -> Result<Json<serde_json::map::Map<String, serde_json::Value>>> {
     let sys = System::new();
     let temperature = sys.cpu_temp().unwrap_or(0.0);
     let mut status_data = serde_json::map::Map::new();
@@ -146,7 +146,7 @@ struct DiskInfo {
     mount_point: serde_json::Value,
 }
 
-fn disk_info() -> Result<Json<serde_json::Value>> {
+async fn disk_info() -> Result<Json<serde_json::Value>> {
     let blk_info = Command::new("lsblk")
         .args(&[
             "-J",
@@ -205,7 +205,7 @@ fn disk_info() -> Result<Json<serde_json::Value>> {
     }
 }
 
-fn mount_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
+async fn mount_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
     if let Some(mount_point) = disk_info.mount_point.as_str() {
         let mut mount_point = mount_point.trim().trim_start_matches('.').to_owned();
         let base_path = &*(MOUNT_BASE_PATH
@@ -256,7 +256,7 @@ fn mount_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
     }
 }
 
-fn remove_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
+async fn remove_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
     if let Some(mount_point) = disk_info.mount_point.as_str() {
         let mut mount_point = mount_point.trim().trim_start_matches('.').to_owned();
         let base_path = &*(MOUNT_BASE_PATH
@@ -296,7 +296,7 @@ fn remove_disk(disk_info: Json<DiskInfo>) -> Result<Json<serde_json::Value>> {
     }
 }
 
-fn shutdown() -> Result<Json<serde_json::Value>> {
+async fn shutdown() -> Result<Json<serde_json::Value>> {
     let shutdown_output = Command::new("shutdown").args(&["-h", "now"]).output();
     if shutdown_output.is_ok() {
         let shutdown_output = shutdown_output.unwrap();
@@ -312,7 +312,7 @@ fn shutdown() -> Result<Json<serde_json::Value>> {
     }
 }
 
-fn reboot() -> Result<Json<serde_json::Value>> {
+async fn reboot() -> Result<Json<serde_json::Value>> {
     let shutdown_output = Command::new("reboot").output();
     if shutdown_output.is_ok() {
         let shutdown_output = shutdown_output.unwrap();
